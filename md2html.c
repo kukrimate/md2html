@@ -24,6 +24,43 @@ next(FILE *fp, int want)
 	return ch;
 }
 
+char *
+nextstr(FILE *fp, char *want)
+{
+	char *cur;
+	int ch;
+
+	for (cur = want; *cur; ++cur)
+		if ((ch = fgetc(fp)) != *cur)
+			goto fail;
+	return want;
+fail:
+	ungetc(ch, fp);
+	while (--cur >= want)
+		ungetc(*cur, fp);
+	return NULL;
+}
+
+void
+skip_white(FILE *fp)
+{
+	int ch;
+
+	while ((ch = fgetc(fp)) != EOF)
+		switch (ch) {
+		case ' ':
+		case '\t':
+		case '\r':
+		case '\n':
+		case '\v':
+		case '\f':
+			break;
+		default:
+			ungetc(ch, fp);
+			return;
+		}
+}
+
 void
 code(FILE *fp)
 {
@@ -64,21 +101,36 @@ codeblock(FILE *fp)
 {
 	int ch;
 
+	skip_white(fp);
 	printf("<pre><code>");
-
-	/* Skip leading newlines in multi-line codeblock */
-	while (next(fp, '\n') == '\n');
-
 	while ((ch = fgetc(fp)) != EOF)
 		switch (ch) {
 		case '`':
-			if (next(fp, '`') == '`' && next(fp, '`') == '`')
+			if (nextstr(fp, "``"))
 				goto end;
 		default:
 			putchar(ch);
 		}
 end:
-	printf("</code></pre>");
+	printf("</code></pre>\n");
+}
+
+void
+heading(FILE *fp, int lvl)
+{
+	int ch;
+
+	skip_white(fp);
+	printf("<h%d>", lvl);
+	while ((ch = fgetc(fp)) != EOF)
+		switch (ch) {
+		case '\n':
+			goto end;
+		default:
+			putchar(ch);
+		}
+end:
+	printf("</h%d>\n", lvl);
 }
 
 void
@@ -101,7 +153,7 @@ blockquote(FILE *fp)
 			putchar(ch);
 		}
 end:
-	printf("</blockquote>");
+	printf("</blockquote>\n");
 }
 
 void
@@ -126,7 +178,7 @@ list(FILE *fp)
 		}
 
 end:
-	printf("</li></ul>");
+	printf("</li></ul>\n");
 }
 
 void
@@ -138,30 +190,30 @@ paragraph(FILE *fp)
 	while ((ch = fgetc(fp)) != EOF)
 		switch (ch) {
 		case '`':
-			if (next(fp, '`') == '`') {
-				if (next(fp, '`') == '`') { /* Code block */
-					/* NOTE: codeblock imples end of p */
-					ungetc('`', fp);
-					ungetc('`', fp);
-					ungetc('`', fp);
-					goto end;
-				} else {                    /* Escaped code */
-					esccode(fp);
-				}
-			} else {                            /* Inline code */
+			if (next(fp, '`') == '`')	/* Escaped code */
+				esccode(fp);
+			else				/* Normal code */
 				code(fp);
-			}
 			break;
-		case '#':
-			/* Heading implies end of p */
-			ungetc(ch, fp);
-			goto end;
 		case '\n':
 			/* Blockquote */
-			if (peak(fp) == '>') {
-				ungetc(ch, fp);
+			if (peak(fp) == '>')
+				goto end;
+
+			/* Heading */
+			if (peak(fp) == '#')
+				goto end;
+
+			/* Code block */
+			if (nextstr(fp, "```")) {
+				/* Please forgive me for this horrific thing,
+				 * I really don't want to implement peakstr */
+				ungetc('`', fp);
+				ungetc('`', fp);
+				ungetc('`', fp);
 				goto end;
 			}
+
 			/* End of paragraph */
 			if (next(fp, '\n') == '\n')
 				goto end;
@@ -169,26 +221,8 @@ paragraph(FILE *fp)
 			putchar(ch);
 		}
 
-	/* End of paragraph */
 end:
-	printf("</p>");
-}
-
-void
-heading(FILE *fp, int lvl)
-{
-	int ch;
-
-	printf("<h%d>", lvl);
-	while ((ch = fgetc(fp)) != EOF)
-		switch (ch) {
-		case '\n':
-			goto end;
-		default:
-			putchar(ch);
-		}
-end:
-	printf("</h%d>", lvl);
+	printf("</p>\n");
 }
 
 void
@@ -203,20 +237,20 @@ md2html(FILE *fp)
 		/* Consume newlines at the start of top level blocks */
 		case '\n':
 			break;
-		case '>':
-			blockquote(fp);
-			break;
-		case '*':
-			list(fp);
-			break;
 		case '#':
 			cnt = 1;
 			while (next(fp, '#') == '#')
 				++cnt;
 			heading(fp, cnt);
 			break;
+		case '>':
+			blockquote(fp);
+			break;
+		case '*':
+			list(fp);
+			break;
 		case '`':
-			if (next(fp, '`') == '`' && next(fp, '`') == '`') {
+			if (nextstr(fp, "``")) {
 				codeblock(fp);
 				break;
 			}

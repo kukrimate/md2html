@@ -1,4 +1,4 @@
-CFLAGS := -std=c89 -Wall -Wpedantic
+CFLAGS := -std=c99 -Wall -Wpedantic
 
 all: md2html
 
