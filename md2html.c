@@ -147,6 +147,20 @@ blockquote(FILE *fp)
 			if (next(fp, '\n') == '\n')
 				goto end;
 
+			/* Next top level element */
+			switch (peak(fp)) {
+			case '#': /* Heading */
+			case '*': /* List */
+				goto end;
+			case '`': /* Code block */
+				if (nextstr(fp, "```")) {
+					ungetc('`', fp);
+					ungetc('`', fp);
+					ungetc('`', fp);
+					goto end;
+				}
+			}
+
 			/* Ignore > on subsequent lines */
 			if (next(fp, '>') == '>')
 				break;
@@ -170,6 +184,20 @@ list(FILE *fp)
 			/* End of list */
 			if (next(fp, '\n') == '\n')
 				goto end;
+
+			/* Next top level element */
+			switch (peak(fp)) {
+			case '#': /* Heading */
+			case '>': /* Blockquote */
+				goto end;
+			case '`': /* Code block */
+				if (nextstr(fp, "```")) {
+					ungetc('`', fp);
+					ungetc('`', fp);
+					ungetc('`', fp);
+					goto end;
+				}
+			}
 
 			/* Line starting with * means next element */
 			if (next(fp, '*') == '*') {
@@ -202,23 +230,20 @@ paragraph(FILE *fp)
 			/* End of paragraph */
 			if (next(fp, '\n') == '\n')
 				goto end;
-			/* Heading */
-			if (peak(fp) == '#')
+
+			/* Next top level element */
+			switch (peak(fp)) {
+			case '#': /* Heading */
+			case '>': /* Blockquote */
+			case '*': /* List */
 				goto end;
-			/* Blockquote */
-			if (peak(fp) == '>')
-				goto end;
-			/* List */
-			if (peak(fp) == '*')
-				goto end;
-			/* Code block */
-			if (nextstr(fp, "```")) {
-				/* Please forgive me for this horrific thing,
-				 * I really don't want to implement peakstr */
-				ungetc('`', fp);
-				ungetc('`', fp);
-				ungetc('`', fp);
-				goto end;
+			case '`': /* Code block */
+				if (nextstr(fp, "```")) {
+					ungetc('`', fp);
+					ungetc('`', fp);
+					ungetc('`', fp);
+					goto end;
+				}
 			}
 		default:
 			putchar(ch);
