@@ -124,6 +124,7 @@ heading(FILE *fp, int lvl)
 	printf("<h%d>", lvl);
 	while ((ch = fgetc(fp)) != EOF)
 		switch (ch) {
+		/* End of heading */
 		case '\n':
 			goto end;
 		default:
@@ -166,9 +167,11 @@ list(FILE *fp)
 	while ((ch = fgetc(fp)) != EOF)
 		switch (ch) {
 		case '\n':
+			/* End of list */
 			if (next(fp, '\n') == '\n')
 				goto end;
 
+			/* Line starting with * means next element */
 			if (next(fp, '*') == '*') {
 				printf("</li><li>");
 				break;
@@ -196,14 +199,18 @@ paragraph(FILE *fp)
 				code(fp);
 			break;
 		case '\n':
-			/* Blockquote */
-			if (peak(fp) == '>')
+			/* End of paragraph */
+			if (next(fp, '\n') == '\n')
 				goto end;
-
 			/* Heading */
 			if (peak(fp) == '#')
 				goto end;
-
+			/* Blockquote */
+			if (peak(fp) == '>')
+				goto end;
+			/* List */
+			if (peak(fp) == '*')
+				goto end;
 			/* Code block */
 			if (nextstr(fp, "```")) {
 				/* Please forgive me for this horrific thing,
@@ -213,10 +220,6 @@ paragraph(FILE *fp)
 				ungetc('`', fp);
 				goto end;
 			}
-
-			/* End of paragraph */
-			if (next(fp, '\n') == '\n')
-				goto end;
 		default:
 			putchar(ch);
 		}
