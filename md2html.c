@@ -4,6 +4,22 @@
 
 #include <stdio.h>
 
+//
+// HTML 13.3 Serializing HTML fragments - "Escaping a string"
+// NOTE: we don't convert U+00A0 to &nbsp; to avoid having to parse UTF-8.
+// URL: https://html.spec.whatwg.org/#serialising-html-fragments
+//
+static void put_escaped(int ch)
+{
+    switch (ch) {
+    case '&':   fputs("&amp;", stdout);     break;
+    case '"':   fputs("&quot;", stdout);    break;
+    case '<':   fputs("&lt;", stdout);      break;
+    case '>':   fputs("&gt;", stdout);      break;
+    default:    putchar(ch);                break;
+    }
+}
+
 static int peek(FILE *fp)
 {
     int ch;
@@ -69,7 +85,7 @@ static void code(FILE *fp)
         case '`':
             goto end;
         default:
-            putchar(ch);
+            put_escaped(ch);
         }
 end:
     printf("</code>");
@@ -86,7 +102,7 @@ static void esccode(FILE *fp)
             if (next(fp, '`'))
                 goto end;
         default:
-            putchar(ch);
+            put_escaped(ch);
         }
 end:
     printf("</code>");
@@ -104,7 +120,7 @@ static void codeblock(FILE *fp)
             if (nextstr(fp, "``"))
                 goto end;
         default:
-            putchar(ch);
+            put_escaped(ch);
         }
 end:
     printf("</code></pre>\n");
@@ -122,7 +138,7 @@ static void heading(FILE *fp, int lvl)
         case '\n':
             goto end;
         default:
-            putchar(ch);
+            put_escaped(ch);
         }
 end:
     printf("</h%d>\n", lvl);
@@ -158,7 +174,7 @@ static void blockquote(FILE *fp)
             if (next(fp, '>'))
                 break;
         default:
-            putchar(ch);
+            put_escaped(ch);
         }
 end:
     printf("</blockquote>\n");
@@ -197,7 +213,7 @@ static void list(FILE *fp)
                 break;
             }
         default:
-            putchar(ch);
+            put_escaped(ch);
         }
 
 end:
@@ -237,7 +253,7 @@ static void paragraph(FILE *fp)
                 }
             }
         default:
-            putchar(ch);
+            put_escaped(ch);
         }
 
 end:
