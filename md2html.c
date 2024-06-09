@@ -20,6 +20,21 @@ static void put_escaped(int ch)
     }
 }
 
+static void rawhtml(FILE *fp)
+{
+    int ch;
+    for (;;)
+        switch ((ch = fgetc(fp))) {
+        case '\\':
+            putchar(fgetc(fp));
+            break;
+        case '$':
+            return;
+        default:
+            putchar(ch);
+        }
+}
+
 static int peek(FILE *fp)
 {
     int ch;
@@ -170,9 +185,11 @@ static void blockquote(FILE *fp)
                 }
             }
 
-            /* Ignore > on subsequent lines */
-            if (next(fp, '>'))
+            /* Add break if > appears on subsequent lines */
+            if (next(fp, '>')) {
+                printf("<br/>");
                 break;
+            }
         default:
             put_escaped(ch);
         }
@@ -188,6 +205,34 @@ static void list(FILE *fp)
 
     while ((ch = fgetc(fp)) != EOF)
         switch (ch) {
+        case '\\':
+            putchar(fgetc(fp));
+            break;
+        case '`':
+            if (next(fp, '`'))   /* Escaped code */
+                esccode(fp);
+            else                 /* Normal code */
+                code(fp);
+            break;
+        case '$':
+            rawhtml(fp);
+            break;
+        case '*':
+            if (!next(fp, '*')) {
+                putchar('*');
+                continue;
+            }
+            printf("<b>");
+            while (!nextstr(fp, "**"))
+                putchar(fgetc(fp));
+            printf("</b>");
+            break;
+        case '_':
+            printf("<it>");
+            while (!next(fp, '_'))
+                putchar(fgetc(fp));
+            printf("</it>");
+            break;
         case '\n':
             /* End of list */
             if (next(fp, '\n'))
@@ -227,11 +272,33 @@ static void paragraph(FILE *fp)
     printf("<p>");
     while ((ch = fgetc(fp)) != EOF)
         switch (ch) {
+        case '\\':
+            putchar(fgetc(fp));
+            break;
         case '`':
             if (next(fp, '`'))   /* Escaped code */
                 esccode(fp);
             else                 /* Normal code */
                 code(fp);
+            break;
+        case '$':
+            rawhtml(fp);
+            break;
+        case '*':
+            if (!next(fp, '*')) {
+                putchar('*');
+                continue;
+            }
+            printf("<b>");
+            while (!nextstr(fp, "**"))
+                putchar(fgetc(fp));
+            printf("</b>");
+            break;
+        case '_':
+            printf("<it>");
+            while (!next(fp, '_'))
+                putchar(fgetc(fp));
+            printf("</it>");
             break;
         case '\n':
             /* End of paragraph */
@@ -243,6 +310,7 @@ static void paragraph(FILE *fp)
             case '#': /* Heading */
             case '>': /* Blockquote */
             case '*': /* List */
+            case '-':
                 goto end;
             case '`': /* Code block */
                 if (nextstr(fp, "```")) {
@@ -283,6 +351,9 @@ static void md2html(FILE *fp)
         case '*':
         case '-':
             list(fp);
+            break;
+        case '$':
+            rawhtml(fp);
             break;
         case '`':
             if (nextstr(fp, "``")) {
